@@ -65,7 +65,8 @@ async def daily_handle(event: MessageEvent, args: str = RegexMatched()):
         msg += "战场：" + res["data"]["battle"] + "\n"
         msg += "矿车：" + res["data"]["camp"] + "\n"
         msg += "驰援：" + res["data"]["relief"] + "\n"
-        msg += "画画：" + res["data"]["draw"] + "\n"
+        if res["data"]["draw"] is not None:
+            msg += "画画：" + res["data"]["draw"] + "\n"
         msg += "世界公共：" + res["data"]["team"][0] + "\n"
         msg += "五人本：" + res["data"]["team"][1] + "\n"
         msg += "十人本：" + res["data"]["team"][2]
@@ -229,7 +230,7 @@ async def equip_handle(event: MessageEvent, args: str = RegexMatched()):
 
 # 骚话
 @random.handle()
-async def random_handle(event: MessageEvent, args: str = RegexMatched()):
+async def random_handle():
     res = request("/app/random", {})
     if res["code"] == 200:
         await random.send(Message(res["data"]["text"]))
