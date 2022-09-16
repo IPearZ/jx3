@@ -8,15 +8,16 @@ from nonebot.adapters.onebot.v11 import Message, MessageSegment, MessageEvent
 from nonebot.params import RegexMatched
 from .config import jx3_config, jx3_profession_config
 from .schedule import server_check
-import matplotlib.pyplot as plt
+from matplotlib import pyplot as plt, font_manager
 import imgkit
 
 # plt显示中文
-plt.rcParams['font.sans-serif'] = ['Arial Unicode MS']
-plt.rcParams['image.interpolation'] = 'nearest'
-plt.rcParams['image.cmap'] = 'gray'
+# TODO 按系统适配
+# plt.rcParams['font.sans-serif'] = ['Arial Unicode MS']
+# plt.rcParams['image.interpolation'] = 'nearest'
+# plt.rcParams['image.cmap'] = 'gray'
+font = font_manager.FontProperties(fname=os.path.dirname(os.path.abspath(__file__)) + '/fonts/plt.ttf')
 plt.rcParams['axes.unicode_minus'] = False
-
 
 
 def request(uri, data):
@@ -65,7 +66,7 @@ async def daily_handle(event: MessageEvent, args: str = RegexMatched()):
         msg += "战场：" + res["data"]["battle"] + "\n"
         msg += "矿车：" + res["data"]["camp"] + "\n"
         msg += "驰援：" + res["data"]["relief"] + "\n"
-        if res["data"]["draw"] is not None:
+        if "draw" in res["data"]:
             msg += "画画：" + res["data"]["draw"] + "\n"
         msg += "世界公共：" + res["data"]["team"][0] + "\n"
         msg += "五人本：" + res["data"]["team"][1] + "\n"
@@ -90,7 +91,7 @@ async def gold_handle(event: MessageEvent, args: str = RegexMatched()):
     path += "/images/gold/" + server + datetime.datetime.now().strftime("%Y-%m-%d") + ".png"
     if not os.path.exists(path):
 
-        res = request("/app/gold", {"server": server})
+        res = request("/app/demon", {"server": server})
         data = res["data"]
         # 对data数据重新排序，按照时间排序
         data.sort(key=lambda x: x["date"])
@@ -147,11 +148,11 @@ async def gold_handle(event: MessageEvent, args: str = RegexMatched()):
                 maxValue = max(v["data"])
 
         # 图例右上角显示
-        plt.legend(loc="upper right")
-        plt.title("【" + server + "】" + "金价", fontsize=20)
-        plt.xticks(rotation=90, fontsize=14)
-        plt.xlabel("日期", fontsize=12)
-        plt.ylabel("价格", fontsize=18)
+        plt.legend(loc="upper right", prop=font)
+        plt.title("【" + server + "】" + "金价", fontsize=20, fontproperties=font)
+        plt.xticks(rotation=90, fontsize=14, fontproperties=font)
+        plt.xlabel("日期", fontsize=12, fontproperties=font)
+        plt.ylabel("价格", fontsize=18, fontproperties=font)
         plt.tick_params(axis='both', labelsize=10)
         plt.axis([date[0], date[-1], minValue, maxValue + (maxValue - minValue) * 0.5])
         # 保存为图片
