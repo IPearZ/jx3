@@ -13,6 +13,7 @@ class Jx3Config(BaseModel):
     # Your Config Here
     server: str = Field("", alias="jx3_server")
     jx3api_host: str = Field("", alias="jx3_jx3api_host")
+    jx3pd_host: str = Field("", alias="jx3_jx3pd_host")
 
     class Config:
         extra = "ignore"

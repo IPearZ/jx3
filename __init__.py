@@ -20,8 +20,7 @@ font = font_manager.FontProperties(fname=os.path.dirname(os.path.abspath(__file_
 plt.rcParams['axes.unicode_minus'] = False
 
 
-def request(uri, data):
-    host = jx3_config.jx3api_host
+def request(host, uri, data):
     # 访问http接口
     url = host + uri
     # 请求头
@@ -46,6 +45,8 @@ medicine = on_regex(r"^(小药|查询小药|小药查询)(\s[\u4e00-\u9fa5]+)*$"
 macro = on_regex(r"^(宏|查询宏|宏查询)(\s[\u4e00-\u9fa5]+)+$", priority=5, block=True)
 # [配装][查询配装][配装查询] [必选参数：心法名]
 equip = on_regex(r"^(配装|查询配装|配装查询)(\s[\u4e00-\u9fa5]+)+$", priority=5, block=True)
+# [查询][查询奇遇] [必选参数：角色ID]
+serendipity = on_regex(r"^(查询|查询奇遇)(\s[\u4e00-\u9fa5]+)+$", priority=5, block=True)
 # [骚话]
 random = on_keyword({"骚话"}, priority=5, block=True)
 
@@ -59,7 +60,7 @@ async def daily_handle(event: MessageEvent, args: str = RegexMatched()):
         server = jx3_config.server
     else:
         server = args[1]
-    res = request("/app/daily", {"server": server})
+    res = request(jx3_config.jx3api_host, "/data/active/current", {"server": server})
     msg = ""
     if res["code"] == 200:
         msg += "大战：" + res["data"]["war"] + "\n"
@@ -87,11 +88,14 @@ async def gold_handle(event: MessageEvent, args: str = RegexMatched()):
         server = args[1]
     # 获取当前文件路径
     path = os.path.dirname(os.path.abspath(__file__))
+    # 如果文件夹不存在则创建
+    if not os.path.exists(path):
+        os.makedirs(path)
     # 判断文件是否存在
-    path += "/images/gold/" + server + datetime.datetime.now().strftime("%Y-%m-%d") + ".png"
+    path += server + datetime.datetime.now().strftime("%Y-%m-%d") + ".png"
     if not os.path.exists(path):
 
-        res = request("/app/demon", {"server": server})
+        res = request(jx3_config.jx3api_host, "/data/trade/demon", {"server": server})
         data = res["data"]
         # 对data数据重新排序，按照时间排序
         data.sort(key=lambda x: x["date"])
@@ -169,7 +173,7 @@ async def medicine_handle(event: MessageEvent, args: str = RegexMatched()):
     # 获取参数
     args = args.split()
     if len(args) == 1:
-        res = request("/app/heighten", {})
+        res = request(jx3_config.jx3api_host, "/data/school/snacks", {})
         if res["code"] == 200:
             await medicine.send(Message(MessageSegment.image(res["data"]["url"])))
             return
@@ -194,7 +198,7 @@ async def macro_handle(event: MessageEvent, args: str = RegexMatched()):
     args = args.split()
     name = args[1]
     name = jx3_profession_config.get_profession(jx3_profession_config, name)
-    res = request("/app/macro", {"name": name})
+    res = request(jx3_config.jx3api_host, "/data/school/macro", {"name": name})
     if res["code"] == 200:
         if "name" not in res["data"] or res["data"]["name"] != name:
             await macro.send(Message("宏不存在"))
@@ -219,7 +223,8 @@ async def equip_handle(event: MessageEvent, args: str = RegexMatched()):
     args = args.split()
     name = args[1]
     name = jx3_profession_config.get_profession(jx3_profession_config, name)
-    res = request("/app/equip", {"name": name})
+    res = request(jx3_config.jx3api_host, "/data/school/equip", {"name": name})
+    print(res, name)
     if res["code"] == 200:
         if "name" not in res["data"] or res["data"]["name"] != name:
             await equip.send(Message("配装不存在"))
@@ -229,9 +234,72 @@ async def equip_handle(event: MessageEvent, args: str = RegexMatched()):
         await equip.send(Message(res["msg"]))
 
 
+# 奇遇查询
+@serendipity.handle()
+async def serendipity_handle(event: MessageEvent, args: str = RegexMatched()):
+    # 获取参数
+    args = args.split()
+    name = args[1]
+    # 获取绝世奇遇
+    param = {
+        "server": jx3_config.server,
+        "type": "绝世奇遇",
+        "name": name,
+        "limit": 50
+    }
+    resJ = request(jx3_config.jx3pd_host, "/api/serendipity", param)
+    if resJ["code"] != 200:
+        await serendipity.send(Message("查询失败"))
+    # 获取世界奇遇
+    param = {
+        "server": jx3_config.server,
+        "type": "世界奇遇",
+        "name": name,
+        "limit": 50
+    }
+    resS = request(jx3_config.jx3pd_host, "/api/serendipity", param)
+    if resS["code"] != 200:
+        await serendipity.send(Message("查询失败"))
+    # 合并dict按time倒序排序
+    res = list(resJ["data"]) + list(resS["data"])
+    res = sorted(res, key=lambda x: x["time"], reverse=True)
+    data = []
+    for v in res:
+        if v["time"] == 0:
+            time = "未知"
+        else:
+            time = datetime.datetime.fromtimestamp(v["time"]).strftime("%Y年%m月%d日 %H:%M")
+        data.append([v["serendipity"], time])
+    title = jx3_config.server + " " + name + " 奇遇记录"
+    plt.title(title, fontsize=14, color='red', loc="center", fontproperties=font)
+    # 背景图
+    # path = os.path.dirname(os.path.abspath(__file__)) + "/images/serendipity/background.png"
+    # background = plt.imread(path)
+    # # 生成图片
+    # fig, ax = plt.subplots(figsize=(10, 5))
+    # ax.imshow(background, zorder=0, extent=[0, 10, 0, 5])
+    table = plt.table(cellText=data, loc="upper center", cellLoc="center")
+    # 设置字体
+    for cell in table.get_celld().values():
+        cell.set_text_props(fontproperties=font)
+        cell.set_fontsize(14)
+        # 设置edgecolor
+        cell.set_edgecolor("white")
+    # TODO 设置图片高度自适应
+    plt.axis("off")
+    # 保存图片
+    path = os.path.dirname(os.path.abspath(__file__)) + "/images/serendipity/" + name + ".png"
+    plt.savefig(path)
+    plt.close()
+    # 发送图片
+    await serendipity.send(Message(MessageSegment.image("file:///" + path)))
+    # 删除图片
+    os.remove(path)
+
+
 # 骚话
 @random.handle()
 async def random_handle():
-    res = request("/app/random", {})
+    res = request(jx3_config.jx3api_host, "/data/chat/random", {})
     if res["code"] == 200:
         await random.send(Message(res["data"]["text"]))
